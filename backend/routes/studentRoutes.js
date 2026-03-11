@@ -10,7 +10,7 @@ router.get("/", async (req, res) => {
   const limitNum = parseInt(limit);
 
   const matchQuery = search 
-    ? { $or: [{ roll: new RegExp(search, 'i') }, { name: new RegExp(search, 'i') }] }
+    ? { $or: [{ regNo: new RegExp(search, 'i') }, { name: new RegExp(search, 'i') }] }
     : {};
 
   try {
@@ -58,10 +58,10 @@ router.post("/bulk", async (req, res) => {
   }
 });
 
-router.put("/:roll", async (req, res) => {
+router.put("/:regNo", async (req, res) => {
   try {
     const updatedStudent = await Student.findOneAndUpdate(
-      { roll: req.params.roll },
+      { regNo: req.params.regNo },
       req.body,
       { new: true }
     );
@@ -74,9 +74,9 @@ router.put("/:roll", async (req, res) => {
   }
 });
 
-router.delete("/:roll", async (req, res) => {
+router.delete("/:regNo", async (req, res) => {
   try {
-    const deletedStudent = await Student.findOneAndDelete({ roll: req.params.roll });
+    const deletedStudent = await Student.findOneAndDelete({ regNo: req.params.regNo });
     if (!deletedStudent) return res.status(404).json({ success: false, message: "Student not found" });
     res.json({ success: true, message: "Student deleted" });
   } catch (err) {
@@ -85,24 +85,24 @@ router.delete("/:roll", async (req, res) => {
   }
 });
 
-router.get("/:roll", async (req, res) => {
+router.get("/:regNo", async (req, res) => {
   try {
-    const student = await Student.findOne({ roll: req.params.roll });
+    const student = await Student.findOne({ regNo: req.params.regNo });
     if (student) {
       res.json({ success: true, student });
     } else {
       res.status(404).json({ success: false, message: "Student not found" });
     }
   } catch (error) {
-    console.error("API ERROR (GET student by roll):", error);
+    console.error("API ERROR (GET student by regNo):", error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
 
 // Alias for AI Chatbot
-router.get("/student/:roll", async (req, res) => {
+router.get("/student/:regNo", async (req, res) => {
   try {
-    const student = await Student.findOne({ roll: req.params.roll });
+    const student = await Student.findOne({ regNo: req.params.regNo });
     if (student) {
       res.json(student);
     } else {

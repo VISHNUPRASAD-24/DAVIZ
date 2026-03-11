@@ -1,13 +1,16 @@
 import React, { useState } from 'react';
-import Papa from 'papaparse';
+import * as xlsx from 'xlsx';
 import { 
   FileSpreadsheet, 
-  Upload, 
   CheckCircle2, 
   AlertCircle, 
   Download,
   Info,
-  Settings
+  Settings,
+  ChevronRight,
+  UploadCloud,
+  FileText,
+  Hash
 } from 'lucide-react';
 import { API_BASE_URL } from '../../config/api';
 
@@ -17,17 +20,31 @@ const BulkImport = () => {
   const [preview, setPreview] = useState([]);
   const [status, setStatus] = useState('idle');
   const [message, setMessage] = useState('');
+  const [details, setDetails] = useState(null);
 
   const handleFileChange = (e) => {
     const selectedFile = e.target.files[0];
     if (selectedFile) {
       setFile(selectedFile);
-      Papa.parse(selectedFile, {
-        header: true,
-        complete: (results) => {
-          setPreview(results.data.slice(0, 5));
+      setDetails(null);
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        const bstr = evt.target.result;
+        const wb = xlsx.read(bstr, { type: 'binary' });
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
+        const data = xlsx.utils.sheet_to_json(ws, { header: 1 });
+        if (data.length > 0) {
+          const headers = data[0] || [];
+          const rows = data.slice(1, 6).map(row => {
+            const obj = {};
+            headers.forEach((h, i) => obj[h] = row[i]);
+            return obj;
+          });
+          setPreview(rows);
         }
-      });
+      };
+      reader.readAsBinaryString(selectedFile);
     }
   };
 
@@ -35,109 +52,125 @@ const BulkImport = () => {
     if (!file) return;
     setStatus('processing');
     setMessage(`Uploading ${importType} data...`);
+    setDetails(null);
 
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      try {
-        const text = e.target.result;
-        const results = Papa.parse(text, { header: true });
-        
-        // Remove empty rows
-        const validData = (results.data || []).filter(row => row && Object.values(row).some(v => v));
-        
-        const endpoint = `${API_BASE_URL}/api/${importType}/bulk`;
-        console.log(`Processing bulk upload to: ${endpoint}`);
+    const formData = new FormData();
+    formData.append('file', file);
 
-        const res = await fetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(validData)
-        });
+    try {
+      const endpoint = `${API_BASE_URL}/api/import/${importType}`;
 
-        if (!res.ok) {
-          const errorData = await res.json();
-          throw new Error(errorData.message || `Upload failed with status: ${res.status}`);
-        }
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        body: formData
+      });
 
-        setStatus('success');
-        setMessage(`Successfully imported ${validData.length} records!`);
-        setFile(null);
-        setPreview([]);
-      } catch (err) {
-        console.error("Bulk Import Error:", err);
-        setStatus('error');
-        setMessage(`Import failed: ${err.message}`);
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.message || `Upload failed with status: ${res.status}`);
       }
-    };
-    reader.readAsText(file);
+
+      setStatus('success');
+      setMessage(`Successfully imported ${data.recordsInserted} records. Skipped ${data.skipped} rows.`);
+      setDetails({
+        inserted: data.recordsInserted,
+        skipped: data.skipped,
+        skippedReasons: data.skippedReasons || [],
+        errors: data.errors || []
+      });
+
+      setFile(null);
+      setPreview([]);
+    } catch (err) {
+      console.error("Bulk Import Error:", err);
+      setStatus('error');
+      setMessage(`Import failed: ${err.message}`);
+    }
   };
 
   const getTemplate = () => {
-    let content = '';
-    if (importType === 'students') content = 'roll,name,department,year,semester,email,phone\n21AIML01,John Doe,AIML,3,1,john@edu.com,9876543210';
-    else if (importType === 'marks') content = 'roll,subject,examType,marks,credits\n21AIML01,Mathematics,Internal,85,3';
-    else if (importType === 'attendance') content = 'roll,subject,date,status\n21AIML01,Mathematics,2026-03-12,Present';
+    let headers = [];
+    let sampleData = [];
+    
+    if (importType === 'students') {
+      headers = ['Register Number', 'Student Name', 'Department', 'Year', 'Section', 'Semester', 'Gender', 'Date of Birth', 'Email', 'Mobile Number', 'Community'];
+      sampleData = ['622023148001', 'AARTHISRI P', 'CSE(AI&ML)', '3', 'B', '5', 'Female', '2004-03-10', 'example@gmail.com', '9876543210', 'BC'];
+    } else if (importType === 'marks') {
+      headers = ['Register Number', 'Subject', 'Internal', 'External'];
+      sampleData = ['622023148001', 'Natural Language Processing', '45', '75'];
+    } else if (importType === 'attendance') {
+      headers = ['Register Number', 'Subject', 'Date', 'Status'];
+      sampleData = ['622023148001', 'Natural Language Processing', '2023-11-20', 'Present'];
+    }
 
-    const blob = new Blob([content], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${importType}_template.csv`;
-    a.click();
+    const worksheet = xlsx.utils.aoa_to_sheet([headers, sampleData]);
+    const workbook = xlsx.utils.book_new();
+    xlsx.utils.book_append_sheet(workbook, worksheet, "Template");
+    xlsx.writeFile(workbook, `${importType}_template.xlsx`);
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="space-y-10 animate-in fade-in duration-700 pb-10">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 border-b border-gray-200 pb-8">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">Advanced Bulk Import</h1>
-          <p className="text-gray-500 text-sm">Efficiently manage thousands of records via CSV modules</p>
+          <div className="flex items-center gap-2 mb-2">
+             <span className="w-6 h-1 bg-[#355c7d] rounded-full"></span>
+             <span className="text-[10px] font-black text-[#355c7d] uppercase tracking-[0.3em]">Data Integration</span>
+          </div>
+          <h1 className="text-4xl font-black text-[#2c2c2c] tracking-tighter">Bulk Acquisition</h1>
+          <p className="text-gray-400 text-sm font-semibold mt-1 italic tracking-tight">Massive record ingestion via structural data modules.</p>
         </div>
-        <div className="flex items-center gap-3 bg-white p-1.5 rounded-2xl border border-gray-100 shadow-sm">
-          <Settings size={18} className="text-gray-400 ml-2" />
+        <div className="flex items-center gap-4 bg-white p-2 rounded-2xl border border-gray-100 shadow-sm ring-1 ring-[#355c7d]/5 transition-all">
+          <Settings size={20} className="text-[#355c7d] ml-3" />
           <select 
-            className="bg-transparent border-none focus:ring-0 text-sm font-bold text-gray-700 pr-8"
+            className="bg-transparent border-none focus:ring-0 text-[11px] font-black text-[#2c2c2c] uppercase tracking-widest pr-10 py-3 cursor-pointer"
             value={importType}
             onChange={(e) => {
               setImportType(e.target.value);
               setPreview([]);
               setFile(null);
               setStatus('idle');
+              setDetails(null);
             }}
           >
-            <option value="students">Students Module</option>
-            <option value="marks">Academics (Marks)</option>
-            <option value="attendance">Attendance Records</option>
+            <option value="students">STUDENT MASTER</option>
+            <option value="marks">ACADEMIC SCORES</option>
+            <option value="attendance">ATTENDANCE LOGS</option>
           </select>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <div className="space-y-6">
-          <div className="bg-white p-10 rounded-3xl border-4 border-dashed border-gray-100 flex flex-col items-center justify-center text-center group hover:border-[#0f3d3e] transition-all cursor-pointer relative overflow-hidden">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+        <div className="space-y-8">
+          <div className="bg-white p-12 rounded-[40px] border border-gray-100 shadow-[0_8px_30px_rgb(0,0,0,0.03)] flex flex-col items-center justify-center text-center group hover:border-[#355c7d]/30 transition-all cursor-pointer relative overflow-hidden group">
+            <div className="absolute top-0 left-0 w-full h-1 bg-gray-50 group-hover:bg-[#355c7d] transition-colors duration-500"></div>
             <input 
               type="file" 
-              accept=".csv" 
+              accept=".csv, .xlsx, .xls" 
               onChange={handleFileChange}
               className="absolute inset-0 opacity-0 cursor-pointer z-10"
             />
-            <div className="p-5 bg-[#0f3d3e]/5 rounded-full text-[#0f3d3e] mb-6 group-hover:scale-110 transition-transform">
-               <FileSpreadsheet size={40} />
+            <div className="p-8 bg-gray-50 rounded-[32px] text-[#355c7d] mb-8 group-hover:scale-110 group-hover:bg-[#355c7d] group-hover:text-white transition-all duration-500 shadow-inner">
+               <UploadCloud size={48} />
             </div>
-            <h3 className="text-lg font-bold text-gray-800 mb-2">
-              {file ? file.name : `Choose ${importType.charAt(0).toUpperCase() + importType.slice(1)} CSV`}
+            <h3 className="text-xl font-black text-[#2c2c2c] mb-3 tracking-tighter uppercase italic">
+              {file ? file.name : `SOURCE ${importType} FILE`}
             </h3>
-            <p className="text-gray-400 text-sm max-w-xs leading-relaxed font-medium">
-              Drag and drop your file here or click to browse. Ensure it matches the template.
+            <p className="text-gray-400 text-xs max-w-xs leading-relaxed font-black uppercase tracking-widest opacity-60">
+              Drag file here or initiate browser. <br/>Supports .xlsx / .csv
             </p>
           </div>
 
-          <div className="bg-blue-50/50 p-6 rounded-2xl flex gap-4 border border-blue-100/50">
-             <div className="text-blue-500 grow-0"><Info size={24} /></div>
+          <div className="bg-[#355c7d]/5 p-8 rounded-[30px] flex gap-6 border border-[#355c7d]/10 group transition-all">
+             <div className="text-[#355c7d] grow-0 group-hover:rotate-12 transition-transform"><Info size={28} /></div>
              <div>
-                <h4 className="text-sm font-bold text-blue-800 mb-1">Upload Guidelines ({importType})</h4>
-                <p className="text-xs text-blue-700/80 italic leading-relaxed">
-                  Bulk operations allow you to insert thousands of records instantly. Ensure all roll numbers exist in the students database before importing marks or attendance.
+                <h4 className="text-[11px] font-black text-[#355c7d] uppercase tracking-[0.2em] mb-2">Acquisition Policy</h4>
+                <p className="text-xs text-[#355c7d]/70 italic leading-[1.6] font-medium">
+                  {importType === 'students' 
+                    ? "Populate student core archives first. Registry IDs & Identity strings are mandatory identifiers."
+                    : "Validate Registry IDs against global database before ingestion. Non-indexed rows will be aborted."}
                 </p>
              </div>
           </div>
@@ -145,67 +178,118 @@ const BulkImport = () => {
           <button
             onClick={handleUpload}
             disabled={!file || status === 'processing'}
-            className={`w-full py-4 rounded-2xl font-bold text-xs uppercase tracking-widest transition-all shadow-lg
-              ${status === 'processing' ? 'bg-gray-100 text-gray-400' : 'bg-[#0f3d3e] text-white hover:bg-[#0b2b2c]'}
+            className={`w-full py-6 rounded-[24px] font-black text-xs uppercase tracking-[0.3em] transition-all shadow-2xl relative overflow-hidden group
+              ${status === 'processing' ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-[#355c7d] text-white hover:brightness-110 active:scale-95 shadow-[#355c7d]/20'}
             `}
           >
-            {status === 'processing' ? 'Processing Transaction...' : `Import ${importType} now`}
+            <span className="relative z-10 flex items-center justify-center gap-3">
+              {status === 'processing' ? 'PROCESSING ENCRYPTION...' : `ENGAGE ${importType} INGESTION`}
+              <ChevronRight size={18} />
+            </span>
           </button>
 
           {status === 'success' && (
-            <div className="bg-green-50 p-4 rounded-xl flex items-center gap-3 text-green-700 font-bold border border-green-100 shadow-sm">
-               <CheckCircle2 size={20} />
-               {message}
+            <div className="space-y-4 animate-in slide-in-from-top-4 duration-500">
+              <div className="bg-emerald-50 p-6 rounded-2xl flex items-center gap-4 text-emerald-700 font-black text-[11px] uppercase tracking-widest border border-emerald-100 shadow-sm">
+                 <CheckCircle2 size={24} />
+                 {message}
+              </div>
+              
+              {details && (details.skipped > 0 || details.errors.length > 0) && (
+                <div className="bg-amber-50 p-6 rounded-2xl border border-amber-100">
+                  {details.skipped > 0 && (
+                    <div className="mb-4">
+                      <p className="text-[10px] font-black text-amber-800 uppercase tracking-widest mb-2 flex items-center gap-2">
+                        <AlertCircle size={14} /> Aborted {details.skipped} Rows
+                      </p>
+                      {details.skippedReasons && details.skippedReasons.length > 0 && (
+                        <ul className="space-y-1.5 ml-6">
+                          {details.skippedReasons.slice(0, 3).map((r, idx) => <li key={idx} className="text-[10px] font-bold text-amber-700/80 italic">• {r}</li>)}
+                          {details.skippedReasons.length > 3 && <li className="text-[10px] font-bold text-amber-400">...additional logs hidden</li>}
+                        </ul>
+                      )}
+                    </div>
+                  )}
+                  {details.errors && details.errors.length > 0 && (
+                     <div>
+                       <p className="text-[10px] font-black text-rose-700 uppercase tracking-widest mb-2 flex items-center gap-2">
+                         <Hash size={14} /> System Anomalies ({details.errors.length})
+                       </p>
+                       <ul className="space-y-1.5 ml-6">
+                          {details.errors.slice(0, 3).map((err, idx) => <li key={idx} className="text-[10px] font-bold text-rose-600/80 italic">• {err}</li>)}
+                       </ul>
+                     </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
           {status === 'error' && (
-            <div className="bg-red-50 p-4 rounded-xl flex items-center gap-3 text-red-700 font-bold border border-red-100 shadow-sm">
-               <AlertCircle size={20} />
+            <div className="bg-rose-50 p-6 rounded-2xl flex items-center gap-4 text-rose-700 font-black text-[11px] uppercase tracking-widest border border-rose-100 shadow-sm animate-in shake-in duration-500">
+               <AlertCircle size={24} />
                {message}
             </div>
           )}
         </div>
 
-        <div className="space-y-4">
-           <div className="flex items-center justify-between">
-              <h2 className="text-lg font-bold text-gray-800">Preview (First 5 records)</h2>
+        <div className="space-y-6">
+           <div className="flex items-center justify-between border-b border-gray-100 pb-4">
+              <h2 className="text-sm font-black text-[#2c2c2c] uppercase tracking-[0.2em] flex items-center gap-2">
+                <FileText size={18} className="text-[#355c7d]" /> Record Sandbox
+              </h2>
               <button 
                 onClick={getTemplate}
-                className="flex items-center gap-2 text-xs font-bold text-[#0f3d3e] bg-white px-4 py-2 rounded-xl border border-gray-100 shadow-sm hover:bg-gray-50 transition-all uppercase tracking-tighter"
+                className="flex items-center gap-2 text-[9px] font-black text-white bg-[#355c7d] px-5 py-2.5 rounded-full shadow-lg shadow-[#355c7d]/10 hover:brightness-125 transition-all uppercase tracking-widest"
               >
-                 <Download size={14} /> Template
+                 <Download size={14} /> Get Blueprint
               </button>
            </div>
            
-           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+           <div className="bg-white rounded-[32px] shadow-[0_8px_30px_rgb(0,0,0,0.02)] border border-gray-50 overflow-hidden group">
               <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
-                     <thead className="bg-gray-50/50 text-gray-500 font-bold uppercase tracking-widest">
+                  <table className="w-full text-left border-collapse">
+                     <thead className="bg-gray-50/80 text-[10px] font-black text-gray-400 uppercase tracking-widest">
                         <tr>
-                           {(preview?.length > 0 && preview[0]) ? Object.keys(preview[0]).slice(0, 3).map(key => (
-                             <th key={key} className="px-4 py-4">{key}</th>
+                           {(preview?.length > 0 && preview[0]) ? Object.keys(preview[0]).slice(0, 4).map(key => (
+                             <th key={key} className="px-6 py-5 border-b border-gray-100">{key}</th>
                            )) : (
-                             <th className="px-4 py-4">Preview</th>
+                             <th className="px-6 py-5 border-b border-gray-100">ARCHIVE PREVIEW</th>
                            )}
                         </tr>
                      </thead>
                      <tbody className="divide-y divide-gray-50 italic">
                         {preview?.length > 0 ? (
                           preview.map((row, i) => (
-                            <tr key={i} className="hover:bg-gray-50 transition-colors">
-                               {Object.values(row || {}).slice(0, 3).map((val, j) => (
-                                 <td key={j} className="px-4 py-4 text-gray-600 font-medium">
-                                   {typeof val === 'string' && val.length > 20 ? val.substring(0, 20) + '...' : val}
+                            <tr key={i} className="hover:bg-gray-50/50 transition-colors">
+                               {Object.values(row || {}).slice(0, 4).map((val, j) => (
+                                 <td key={j} className="px-6 py-5 text-[#2c2c2c] font-bold text-[13px] whitespace-nowrap overflow-hidden text-ellipsis max-w-[150px] tracking-tight">
+                                   {val}
                                  </td>
                                ))}
                             </tr>
                           ))
                         ) : (
-                          <tr><td colSpan="3" className="px-4 py-10 text-center text-gray-400 font-medium">No file selected for preview.</td></tr>
+                          <tr><td colSpan="4" className="px-6 py-20 text-center text-[10px] font-black text-gray-300 uppercase tracking-widest italic opacity-60">Source file not engaged for analysis</td></tr>
                         )}
                      </tbody>
                   </table>
               </div>
+           </div>
+           
+           <div className="bg-white p-8 rounded-[32px] border border-gray-100 shadow-sm">
+             <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+               <Settings size={14} /> Acquisition Statistics
+             </h4>
+             <div className="grid grid-cols-2 gap-4">
+                <div className="p-4 bg-gray-50 rounded-2xl">
+                   <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Max Queue</p>
+                   <p className="text-xl font-black text-[#2c2c2c]">10k Records</p>
+                </div>
+                <div className="p-4 bg-gray-50 rounded-2xl">
+                   <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Timeout</p>
+                   <p className="text-xl font-black text-[#2c2c2c]">300 Seconds</p>
+                </div>
+             </div>
            </div>
         </div>
       </div>

@@ -11,14 +11,15 @@ const fixDatabase = async () => {
     const db = mongoose.connection.db;
     const studentsCollection = db.collection('students');
 
-    console.log("Dropping all existing indexes on students collection...");
-    await studentsCollection.dropIndexes();
-    console.log("Indexes dropped successfully.");
-
-    console.log("Creating unique index on 'roll' field...");
-    await studentsCollection.createIndex({ roll: 1 }, { unique: true });
-    console.log("Unique index on 'roll' created successfully.");
-
+    console.log("Dropping existing indexes on students collection except _id...");
+    try {
+      // get indexes and drop anything matching 'roll'
+      await studentsCollection.dropIndex('roll_1');
+      console.log("Dropped roll_1 index from students.");
+    } catch(e) {
+      console.log("roll_1 index not found entirely or already dropped.");
+    }
+    
     // Also check other collections for legacy indexes if any
     const attendanceCollection = db.collection('attendances');
     try {
@@ -28,9 +29,18 @@ const fixDatabase = async () => {
 
     const marksCollection = db.collection('marks');
     try {
-      await marksCollection.dropIndex('rollNumber_1');
-      console.log("Dropped rollNumber index from marks.");
-    } catch (e) {}
+      await marksCollection.dropIndex('roll_1_semester_1_subject_1');
+      console.log("Dropped roll_1_semester_1_subject_1 index from marks.");
+    } catch (e) {
+      console.log("Legacy roll marks index not found entirely or already dropped.");
+    }
+
+    try {
+      await marksCollection.dropIndex('regNo_1_subject_1');
+      console.log("Dropped regNo_1_subject_1 index from marks.");
+    } catch (e) {
+      console.log("Legacy regNo marks index not found entirely or already dropped.");
+    }
 
     console.log("Database fix complete.");
     process.exit(0);

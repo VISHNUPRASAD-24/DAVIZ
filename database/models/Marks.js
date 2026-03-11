@@ -1,45 +1,22 @@
 import mongoose from 'mongoose';
 
 const marksSchema = new mongoose.Schema({
-  roll: {
-    type: String,
-    required: true,
-    ref: 'Student'
-  },
-  semester: {
-    type: Number,
-    required: true
-  },
-  subject: {
-    type: String,
-    required: true
-  },
-  cycleTest1: {
-    type: Number,
-    default: 0
-  },
-  cycleTest2: {
-    type: Number,
-    default: 0
-  },
-  internal1: {
-    type: Number,
-    default: 0
-  },
-  internal2: {
-    type: Number,
-    default: 0
-  },
-  modelExam: {
-    type: Number,
-    default: 0
-  }
+  regNo: { type: String, required: true },
+  studentName: String,
+  subject: String,
+  sem: Number,
+  cycle1: Number,
+  cycle2: Number,
+  internal1: Number,
+  internal2: Number,
+  model: Number,
+  total: Number
 }, {
   timestamps: true
 });
 
-// Unique index for student + semester + subject
-marksSchema.index({ roll: 1, semester: 1, subject: 1 }, { unique: true });
+// Unique index for student + sem + subject
+marksSchema.index({ regNo: 1, sem: 1, subject: 1 }, { unique: true });
 
 const Marks = mongoose.model('Marks', marksSchema);
 export default Marks;

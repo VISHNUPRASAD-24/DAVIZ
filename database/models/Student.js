@@ -1,10 +1,13 @@
 import mongoose from 'mongoose';
 
 const studentSchema = new mongoose.Schema({
-  roll: {
+  regNo: {
     type: String,
     required: true,
     unique: true
+  },
+  roll: { // Keep roll as alias for legacy support if needed, but primary is regNo
+    type: String
   },
   name: {
     type: String,
@@ -33,8 +36,13 @@ const studentSchema = new mongoose.Schema({
     required: true,
     default: 1
   },
+  section: {
+    type: String,
+    default: 'A'
+  },
   gender: String,
-  dob: Date
+  dob: String, // Storing as string to match Excel format easily, or can be Date
+  community: String
 }, {
   timestamps: true
 });

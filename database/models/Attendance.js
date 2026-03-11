@@ -1,25 +1,29 @@
 import mongoose from 'mongoose';
 
 const attendanceSchema = new mongoose.Schema({
-  roll: {
+  regNo: {
     type: String,
     required: true,
     ref: 'Student'
+  },
+  studentName: {
+    type: String
   },
   subject: {
     type: String,
     required: true
   },
-  date: {
-    type: Date,
-    required: true,
-    default: Date.now
+  hoursConducted: {
+    type: Number,
+    default: 0
   },
-  status: {
-    type: String,
-    required: true,
-    enum: ['Present', 'Absent'],
-    default: 'Present'
+  hoursPresent: {
+    type: Number,
+    default: 0
+  },
+  percentage: {
+    type: Number,
+    default: 0
   }
 }, {
   timestamps: true

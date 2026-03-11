@@ -47,22 +47,24 @@ const ChatPage = () => {
         })
       });
 
-      if (!res.ok) {
-        throw new Error(`Chat request failed with status: ${res.status}`);
+      const data = await res.json();
+      console.log("Chat API response:", data);
+
+      let botReply = "Sorry, something went wrong.";
+
+      if (res.ok) {
+        botReply = data.reply || botReply;
+      } else {
+        // Handle explicit error messages from backend if they exist
+        botReply = data.error || data.reply || botReply;
       }
 
-      const data = await res.json();
-
       // Output bot message to UI
-      const botMsg = { id: Date.now() + 1, text: data.reply || "No reply generated", sender: 'bot' };
+      const botMsg = { id: Date.now() + 1, text: botReply, sender: 'bot' };
       setMessages(prev => [...prev, botMsg]);
     } catch (error) {
       console.error("Error communicating with chat backend:", error);
-      let errorText = "Sorry, I am having trouble connecting to the database right now. Please try again later.";
-      
-      if (error.message.includes('fetch') || error.name === 'TypeError') {
-        errorText = "I can't reach the college server right now. Please ensure the backend is running on port 5000.";
-      }
+      let errorText = "I can't reach the college server right now. Please ensure the backend is running on port 5000.";
       
       const errorMsg = { id: Date.now() + 1, text: errorText, sender: 'bot' };
       setMessages(prev => [...prev, errorMsg]);

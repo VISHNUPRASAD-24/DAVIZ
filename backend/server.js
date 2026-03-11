@@ -3,7 +3,13 @@ import mongoose from "mongoose";
 import cors from "cors";
 import dotenv from "dotenv";
 
-dotenv.config();
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+dotenv.config({ path: path.join(__dirname, ".env") });
 console.log("-----------------------------------------");
 console.log("OpenRouter Key:", process.env.OPENROUTER_API_KEY ? "✅ Loaded" : "❌ Missing");
 console.log("-----------------------------------------");
@@ -18,6 +24,7 @@ import attendanceRoutes from "./routes/attendanceRoutes.js";
 import marksRoutes from "./routes/marksRoutes.js";
 import academicsRoutes from "./routes/academicsRoutes.js";
 import analyticsRoutes from "./routes/analyticsRoutes.js";
+import importRoutes from "./routes/importRoutes.js";
 import { getStudentData } from './services/studentQueryService.js';
 
 const app = express();
@@ -42,11 +49,12 @@ app.use("/api/notices", noticeRoutes);
 app.use("/api/attendance", attendanceRoutes);
 app.use("/api/marks", marksRoutes);
 app.use("/api/academics", academicsRoutes);
+app.use("/api/import", importRoutes);
 
 // Direct Aliases for AI Chatbot
-app.get("/api/student/:rollNo", async (req, res) => {
+app.get("/api/student/:regNo", async (req, res) => {
   try {
-    const data = await getStudentData(req.params.rollNo);
+    const data = await getStudentData(req.params.regNo);
     if (data) {
       res.json(data);
     } else {
@@ -58,18 +66,18 @@ app.get("/api/student/:rollNo", async (req, res) => {
   }
 });
 
-app.get("/api/attendance/:roll", async (req, res) => {
+app.get("/api/attendance/:regNo", async (req, res) => {
   try {
     const Attendance = (await import('../database/models/Attendance.js')).default;
-    const records = await Attendance.find({ roll: req.params.roll });
+    const records = await Attendance.find({ regNo: req.params.regNo });
     res.json(records || []);
   } catch (err) { res.status(500).json([]); }
 });
 
-app.get("/api/academics/:roll", async (req, res) => {
+app.get("/api/academics/:regNo", async (req, res) => {
   try {
     const Marks = (await import('../database/models/Marks.js')).default;
-    const records = await Marks.find({ roll: req.params.roll });
+    const records = await Marks.find({ regNo: req.params.regNo });
     res.json(records || []);
   } catch (err) { res.status(500).json([]); }
 });

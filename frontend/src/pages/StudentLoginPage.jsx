@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { User, ArrowRight } from 'lucide-react';
 
 const StudentLoginPage = () => {
   const [roll, setRoll] = useState('');
   const navigate = useNavigate();
 
-  const handleEnter = () => {
+  const handleEnter = (e) => {
+    e.preventDefault();
     if (roll.trim() !== '') {
       localStorage.setItem('daviz_current_student', roll.trim().toUpperCase());
       navigate('/chat');
@@ -13,26 +15,44 @@ const StudentLoginPage = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-yellow-400 p-4">
-      <div className="bg-white rounded-xl shadow-lg p-8 w-full max-w-[360px] flex flex-col">
-        <h2 className="text-2xl font-bold text-center text-gray-800 mb-6">Student Login</h2>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#f8fafc] to-[#d1d5db] p-4 font-sans">
+      <div className="bg-white rounded-[18px] shadow-2xl p-10 w-full max-w-[420px] flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-500">
         
-        <div className="flex flex-col gap-4">
-          <input
-            type="text"
-            placeholder="Enter your Roll Number"
-            value={roll}
-            onChange={(e) => setRoll(e.target.value)}
-            className="w-full px-4 py-3 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#0f3d3e] transition-colors"
-          />
+        <div className="flex flex-col items-center mb-8">
+          <div className="bg-[#355c7d]/10 p-4 rounded-full text-[#355c7d] mb-4">
+            <User size={40} />
+          </div>
+          <h2 className="text-3xl font-bold text-[#355c7d]">Student Login</h2>
+          <p className="text-gray-500 mt-2">Access your academic records</p>
+        </div>
+        
+        <form onSubmit={handleEnter} className="flex flex-col gap-6">
+          <div className="flex flex-col gap-2">
+            <label className="text-sm font-semibold text-gray-700 ml-1">Register Number</label>
+            <input
+              type="text"
+              placeholder="e.g. 211421104001"
+              value={roll}
+              onChange={(e) => setRoll(e.target.value)}
+              className="w-full px-5 py-3.5 rounded-xl border border-gray-200 focus:outline-none focus:border-[#355c7d] focus:ring-1 focus:ring-[#355c7d] transition-all bg-gray-50/50"
+              autoFocus
+            />
+          </div>
           
           <button
-            onClick={handleEnter}
-            className="w-full bg-[#0f3d3e] text-white rounded-md py-3 px-4 hover:bg-[#0b2b2c] transition-all duration-300 font-medium"
+            type="submit"
+            className="w-full bg-[#355c7d] text-white rounded-xl py-4 px-6 hover:brightness-110 hover:-translate-y-0.5 transition-all duration-300 font-bold text-lg flex items-center justify-center gap-2 shadow-lg shadow-[#355c7d]/20"
           >
-            Enter
+            Enter Portal <ArrowRight size={20} />
           </button>
-        </div>
+        </form>
+
+        <button 
+          onClick={() => navigate('/')}
+          className="mt-8 text-gray-400 hover:text-[#355c7d] text-sm font-medium transition-colors"
+        >
+          ← Back to selection
+        </button>
       </div>
     </div>
   );
